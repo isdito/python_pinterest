@@ -1,5 +1,35 @@
 #!/usr/bin/env python
 # -*- coding: utf8 -*-
+
+"""
+BSD 2-Clause License
+
+Copyright (c) 2017 Ilker Temir with original code by Andrey Nikishaev
+
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+* Redistributions of source code must retain the above copyright notice, this
+  list of conditions and the following disclaimer.
+
+* Redistributions in binary form must reproduce the above copyright notice,
+  this list of conditions and the following disclaimer in the documentation
+  and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+"""
+
 import time
 import urllib
 import urllib2
@@ -11,95 +41,120 @@ import sys
 import json
 
 class Pinterest(object):
-
     def __init__(self,cookie=None):
         self.cookieJar           = cookie
         self.csrfmiddlewaretoken = None
         self.http_timeout        = 15
-        self.boards              = {}
         
     def getCookies(self):
         return self.cookieJar
         
     def login(self,login,password):
-        url = 'https://pinterest.com/login/'
+        url = 'https://www.pinterest.com/'
         try:
             res,headers,cookies = self.request(url)
         except Exception as e:
             raise NotLogged(e)
-        
+
         post_data = urllib.urlencode({
-            'source_url':'/login/',
-            'data':json.dumps({"options":{"username_or_email":login,"password":password},"context":{"app_version":"62fcc23","https_exp":False}}),
-            'module_path':'App()>LoginPage()>Login()>Button(class_name=primary, text=Log in, type=submit, size=large)'
-        }) 
-        res,headers,cookies = self.request('http://www.pinterest.com/resource/UserSessionResource/create/',post_data,referrer='https://pinterest.com/login/',ajax=True)
-        if login in res:
+            'source_url':'/',
+            'data':json.dumps({
+                "options": {
+                    "username_or_email":login,
+                    "password":password
+                },
+                "context": {}
+            }),
+        })
+        url = 'https://www.pinterest.com/resource/UserSessionResource/create/'
+        res,headers,cookies = self.request(url,
+                                           post_data,
+                                           referrer='https://www.pinterest.com/',
+                                           ajax=True)
+
+        post_data = urllib.urlencode({
+            'source_url':'/',
+            'data':json.dumps({
+                "options": {
+                    "actions":[
+                        {"name":"login.referrer.unauth_home_react_page.email"},
+                        {"name":"login.container.home_page.email"},
+                        {"name":"login.type.email"}
+                    ]
+                },
+                "context":{}
+            }),
+        })
+        url = 'https://www.pinterest.com/resource/UserRegisterTrackActionResource/update/'
+        res,headers,cookies = self.request(url,
+                                           post_data,
+                                           referrer='https://www.pinterest.com/',
+                                           ajax=True)
+        data = json.loads(res)
+        logged_in =  data['client_context']['is_authenticated']
+        if logged_in:
             return True
         else:
-            raise NotLogged('Not authorized. Cant find "window.userIsAuthenticated = true" in response')
+            raise NotLogged('Authentication failure. Check your credentials.')
 
-    def search(self,query):
-    
-        query = urllib.quote(query)
-    
-        #"bookmarks": ["b28yNXxmMGVmZDA5YjA5Yjk5NDIxZjgzODZjNDRkZWEzNTRhZmIyZDRjZjE3ZWY4YmRmMWE4NmVhZGQwNDg1NTNmOTAw"]
-        #url = 'http://www.pinterest.com/search/pins/?q=%s' % query
-        
-        #res,headers,cookies = self.request(url, referrer='https://pinterest.com/')
-        #bookmark = re.findall(r'"bookmarks": \["([0-9a-z]+)"\]',res, re.I | re.M | re.U | re.S)[0]
-        bookmark = ''
-
-        url =  'http://www.pinterest.com/resource/SearchResource/get/?source_url=%2Fsearch%2Fpins%2F%3Fq%3Dart%26rs%3Dac%26len%3D1&data=%7B%22options%22%3A%7B%22show_scope_selector%22%3Anull%2C%22scope%22%3A%22pins%22%2C%22constraint_string%22%3Anull%2C%22bookmarks%22%3A%5B%22'+bookmark+'%22%5D%2C%22query%22%3A%22'+query+'%22%7D%2C%22context%22%3A%7B%22app_version%22%3A%22da919e8%22%2C%22https_exp%22%3Afalse%7D%2C%22module%22%3A%7B%22name%22%3A%22GridItems%22%2C%22options%22%3A%7B%22scrollable%22%3Atrue%2C%22show_grid_footer%22%3Atrue%2C%22centered%22%3Atrue%2C%22reflow_all%22%3Atrue%2C%22virtualize%22%3Atrue%2C%22item_options%22%3A%7B%22show_pinner%22%3Atrue%2C%22show_pinned_from%22%3Afalse%2C%22show_board%22%3Atrue%7D%2C%22layout%22%3A%22variable_height%22%2C%22track_item_impressions%22%3Atrue%7D%7D%2C%22append%22%3Atrue%2C%22error_strategy%22%3A1%7D&module_path=App()%3EHeader()%3Eui.SearchForm()%3Eui.TypeaheadField(enable_recent_queries%3Dtrue%2C+name%3Dq%2C+view_type%3Dsearch%2C+class_name%3DinHeader%2C+prefetch_on_focus%3Dtrue%2C+value%3D%22%22%2C+populate_on_result_highlight%3Dtrue%2C+search_delay%3D0%2C+search_on_focus%3Dtrue%2C+placeholder%3DSearch%2C+tags%3Dautocomplete)&_='+str(int(time.time())*10*10*10)
-                                                                                                                                      
-
-        res,headers,cookies = self.request(url, referrer='https://pinterest.com/search/pins/?q=%s' % query, ajax=True)
-        
-        data = json.loads(res)
-        posts = data['module']['tree']['children']
-        res = []
-        for p in posts:
-            desc = ''
-            for i in p['children']:
-                if i['id'] == 'sendPinButton':
-                    desc = i['options']['module']['options']['object_description']
-                    break
-            res.append({
-                'id': p['options']['pin_id']
-                ,'img': p['data']['images']['orig']['url']
-                ,'link': p['data']['link']
-                ,'desc': desc
-            })
-            
-        return res
-        
     def getBoards(self):
-        url       = 'http://pinterest.com/pin/create/bookmarklet/'
-        res,headers,cookies = self.request(url,referrer='https://pinterest.com/')
-        
-        res = re.findall(r'<li(?:.*?)data-id="([^"]+)"(?:.*?)</div>([^<]+)</li>',res, re.I | re.M | re.U | re.S)
-        boards = {}
-        for idb,name in res:
-            boards[unicode(name,'utf-8').lower().strip()] = idb
-        self.boards = boards
-        return boards
-    
-    def createPin(self,board='',title='',media='',posturl='',tags=[]):
-        url       = 'http://pinterest.com/pin/create/bookmarklet/?media=%s&url=%s&description=%s' % (media,posturl,title)
         post_data = urllib.urlencode({
-            'source_url':'/pin/create/bookmarklet/?media=%s&url=%s&description=%s' % (media,posturl,title),
-            'data':'{"options":{"board_id":"%s","description":"%s","link":"%s","share_facebook":false,"image_url":"%s","method":"bookmarklet","is_video":null},"context":{"app_version":"62fcc23","https_exp":false}}' % (board,title,posturl,media),
-            'module_path':'App()>PinBookmarklet()>PinCreate()>PinForm()>Button(class_name=repinSmall pinIt, text=Pin it, disabled=false, has_icon=true, show_text=false, type=submit, color=primary)'
-        }) 
+            'source_url':'/pin/create/bookmarklet/',
+            'data': json.dumps({
+                'options': {
+                    'filter': 'all',
+                    'field_set_key': 'board_picker',
+                    'allow_stale': True,
+                    'from':"app"
+                },
+                "context":{}
+            }),
+        })
+        referrer = 'https://www.pinterest.com/resource/PinResource/create/'
+        url = 'https://www.pinterest.com/resource/BoardPickerBoardsResource/get/'
+        res,header,query = self.request(url,
+                                        post_data,
+                                        referrer=referrer,
+                                        ajax=True)
+        boards = json.loads(res)['resource_response']['data']['all_boards']
+        boards_dict={}
+        for board in boards:
+            name = board.pop('name')
+            boards_dict[name]=board
+        return boards_dict
+
+   
+    def createPin(self, board_id, url, image_url, description):
+        post_data = urllib.urlencode({
+            'source_url':'/pin/create/bookmarklet/',
+            'data': json.dumps({
+                'options': {
+                    'description': description,
+                    'link': url,
+                    'board_id': board_id,
+                    'method': 'bookmarklet',
+                    'image_url': image_url,
+                    'share_facebook': False,
+                    'share_twitter': False
+                },
+                "context":{}
+            }),
+        })
+        referrer = 'https://www.pinterest.com/resource/PinResource/create/'
+        url = 'https://www.pinterest.com/resource/PinResource/create/'
         try:
-            res,header,query = self.request('http://www.pinterest.com/resource/PinResource/create/', post_data,referrer=url,ajax=True)
+            res,header,query = self.request(url,
+                                            post_data,
+                                            referrer = referrer,
+                                            ajax = True)
         except Exception as e:
             raise CantCreatePin(e)
         else:
             if 'PinResource' in res:
                 return True
             raise CantCreatePin('Cant create pin. Cant find PinResource in response')
-            
+
+           
     def request(self,url,post_data=None,referrer='http://google.com/',ajax=False):
         """Donwload url with urllib2.
         
@@ -179,13 +234,3 @@ class NotLogged(Exception):
     
 class CantCreatePin(Exception):
     pass
-    
-
-    
-    
-    
-    
-    
-    
-    
-        
