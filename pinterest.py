@@ -123,6 +123,36 @@ class Pinterest(object):
             boards_dict[name]=board
         return boards_dict
 
+    def createBoard(self, name, description='', category='other', 
+                    privacy='public'):
+        post_data = urllib.urlencode({
+            'source_url':'/',
+            'data': json.dumps({
+                'options': {
+                    'name': name,
+                    'description': description,
+                    'category': category,
+                    'privacy': privacy,
+                    'collab_board_email': True,
+                    'collaborator_invites_enabled': True
+                },
+                'context': {}
+          }),
+        })
+        referrer = 'https://www.pinterest.com/'
+        url = 'https://www.pinterest.com/resource/BoardResource/create/'
+        try:
+            res,header,query = self.request(url,
+                                            post_data,
+                                            referrer = referrer,
+                                            ajax = True)
+            response = json.loads(res)
+        except Exception as e:
+            raise CantCreateBoard(e)
+        else:
+            return response['resource_response']['data']['id']
+            raise CantCreatePin('Cant create pin. Cant find PinResource in response')
+
    
     def createPin(self, board_id, url, image_url, description):
         post_data = urllib.urlencode({
@@ -231,6 +261,10 @@ class DownloadTimeoutException(Exception):
     
 class NotLogged(Exception):
     pass
-    
+
+class CantCreateBoard(Exception):
+    pass
+
 class CantCreatePin(Exception):
     pass
+    
